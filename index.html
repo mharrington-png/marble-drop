@@ -172,9 +172,25 @@
 // ─── Canvas setup ─────────────────────────────────────────
 const canvas = document.getElementById('canvas');
 const ctx    = canvas.getContext('2d');
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = window.innerWidth  * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width  = window.innerWidth  + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.scale(dpr, dpr);
+}
+
+// Game logic always uses logical (CSS) pixels, not physical canvas pixels
+function gw() { return window.innerWidth; }
+function gh() { return window.innerHeight; }
 resize();
 window.addEventListener('resize', resize);
+
+// Prevent any tap/click on the canvas from bubbling and causing reloads
+canvas.addEventListener('click',      e => e.preventDefault());
+canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+canvas.addEventListener('touchend',   e => e.preventDefault(), { passive: false });
 
 // ─── Constants ────────────────────────────────────────────
 const MARBLE_RADIUS = 14;
@@ -290,7 +306,7 @@ function initGame() {
   coinCount = 0;
   startTimer = 0;
 
-  marble = { x: canvas.width / 2, y: 120, vx: 0, vy: 0, alive: true };
+  marble = { x: gw()/2, y: 120, vx: 0, vy: 0, alive: true };
 
   platforms = [];
   coins     = [];
@@ -317,19 +333,18 @@ function spawnPlatform(index) {
   const margin = 24;
   const diff   = getDifficulty();
   // Scale factor so platforms are same relative size regardless of screen width
-  const scale  = canvas.width / REF_WIDTH;
+  const scale  = gw() / REF_WIDTH;
   let w, x;
 
   if (index === 0) {
     w = REF_WIDTH * 0.35 * scale;
-    x = (canvas.width - w) / 2;
+    x = (gw() - w) / 2;
   } else {
-    // Width in reference pixels, then scaled — stays consistent across screen sizes
     const maxW = (58  - diff * 25) * scale;
     const minW = (40  - diff * 10) * scale;
     w = minW + Math.random() * (maxW - minW);
-    w = Math.max(40 * scale, Math.min(w, canvas.width * 0.45));
-    x = margin + Math.random() * (canvas.width - w - margin * 2);
+    w = Math.max(40 * scale, Math.min(w, gw() * 0.45));
+    x = margin + Math.random() * (gw() - w - margin * 2);
   }
 
   // Gap increases with difficulty
@@ -397,8 +412,8 @@ function moveAndCollide() {
       marble.x = MARBLE_RADIUS;
       marble.vx = Math.abs(marble.vx) * 0.55;
     }
-    if (marble.x + MARBLE_RADIUS > canvas.width) {
-      marble.x = canvas.width - MARBLE_RADIUS;
+    if (marble.x + MARBLE_RADIUS > gw()) {
+      marble.x = gw() - MARBLE_RADIUS;
       marble.vx = -Math.abs(marble.vx) * 0.55;
     }
 
@@ -496,7 +511,7 @@ function update() {
   }
 
   // Camera: lock marble to top 25% of screen
-  cameraY = marble.y - canvas.height * 0.25;
+  cameraY = marble.y - gh() * 0.25;
 
   // Score: (coins+1) * sqrt(distance)
   const dist = Math.max(0, Math.floor(cameraY / 10));
@@ -506,13 +521,13 @@ function update() {
 
   // Spawn platforms ahead
   const last = platforms[platforms.length - 1];
-  if (last && last.y < cameraY + canvas.height + 400) {
+  if (last && last.y < cameraY + gh() + 400) {
     spawnPlatform(last.index + 1);
   }
 
   // Cull off-screen objects — keep a generous buffer above in case of bounce
-  platforms = platforms.filter(p => p.y > cameraY - canvas.height * 1.5);
-  coins     = coins.filter(c => !c.collected && c.y > cameraY - canvas.height * 1.5);
+  platforms = platforms.filter(p => p.y > cameraY - gh() * 1.5);
+  coins     = coins.filter(c => !c.collected && c.y > cameraY - gh() * 1.5);
 
   // Particles
   for (const p of particles) {
@@ -526,28 +541,28 @@ function update() {
 
 // ─── Draw ─────────────────────────────────────────────────
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, gw(), gh());
 
   // Subtle grid
   ctx.strokeStyle = 'rgba(255,255,255,0.022)';
   ctx.lineWidth = 1;
   const gs = 60;
   const oy = cameraY % gs;
-  for (let x = 0; x < canvas.width; x += gs) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  for (let x = 0; x < gw(); x += gs) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, gh()); ctx.stroke();
   }
-  for (let y = -oy; y < canvas.height; y += gs) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  for (let y = -oy; y < gh(); y += gs) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(gw(), y); ctx.stroke();
   }
 
   // Platforms
   for (const p of platforms) {
     const sy = p.y - cameraY;
-    if (sy < -20 || sy > canvas.height + 20) continue;
+    if (sy < -20 || sy > gh() + 20) continue;
 
     // Blink the expiring platform during its last second (frames 120-180)
     if (p.expires && startTimer >= 120) {
-      const blinkRate = startTimer >= 150 ? 6 : 12; // blinks faster in final 0.5s
+      const blinkRate = startTimer >= 150 ? 6 : 12;
       if (Math.floor(startTimer / blinkRate) % 2 === 0) continue;
     }
 
@@ -566,7 +581,7 @@ function draw() {
   for (const c of coins) {
     if (c.collected) continue;
     const sy = c.y - cameraY;
-    if (sy < -20 || sy > canvas.height + 20) continue;
+    if (sy < -20 || sy > gh() + 20) continue;
     c.anim += 0.04;
 
     ctx.save();
