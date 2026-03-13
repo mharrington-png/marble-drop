@@ -141,6 +141,12 @@
   </div>
 </div>
 
+<div id="pause-overlay" style="display:none; position:fixed; inset:0; background:rgba(10,10,15,0.85); z-index:20; flex-direction:column; align-items:center; justify-content:center;">
+  <div style="font-size:32px; font-weight:900; letter-spacing:0.2em; color:#fff; text-transform:uppercase;">Paused</div>
+  <button class="btn" id="resumeBtn" style="margin-top:32px;">Resume</button>
+  <button class="btn-ghost" id="menuBtn" style="margin-top:12px;">← Main Menu</button>
+</div>
+
 <div id="death-overlay">
   <!-- Step 1: name entry -->
   <div id="name-entry">
@@ -187,10 +193,21 @@ function gh() { return window.innerHeight; }
 resize();
 window.addEventListener('resize', resize);
 
-// Prevent any tap/click on the canvas from bubbling and causing reloads
-canvas.addEventListener('click',      e => e.preventDefault());
-canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-canvas.addEventListener('touchend',   e => e.preventDefault(), { passive: false });
+// Canvas tap toggles pause during gameplay; preventDefault stops bubbling/reload
+canvas.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+canvas.addEventListener('touchstart', e => { e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (state === STATE.PLAYING || state === STATE.PAUSED) togglePause();
+}, { passive: false });
+
+// Spacebar pauses on desktop
+window.addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); togglePause(); return; }
+  if (e.key === 'ArrowLeft')  keyLeft  = true;
+  if (e.key === 'ArrowRight') keyRight = true;
+});
 
 // ─── Constants ────────────────────────────────────────────
 const MARBLE_RADIUS = 14;
@@ -268,8 +285,18 @@ function soundShatter() {
 }
 
 // ─── Game state ───────────────────────────────────────────
-const STATE = { IDLE: 0, PLAYING: 1, DEAD: 2 };
+const STATE = { IDLE: 0, PLAYING: 1, DEAD: 2, PAUSED: 3 };
 let state = STATE.IDLE;
+
+function togglePause() {
+  if (state === STATE.PLAYING) {
+    state = STATE.PAUSED;
+    document.getElementById('pause-overlay').style.display = 'flex';
+  } else if (state === STATE.PAUSED) {
+    state = STATE.PLAYING;
+    document.getElementById('pause-overlay').style.display = 'none';
+  }
+}
 
 let marble     = null;
 let platforms  = [];
@@ -289,10 +316,6 @@ let keyRight = false;
 
 window.addEventListener('deviceorientation', e => {
   if (e.gamma !== null) tiltX = Math.max(-30, Math.min(30, e.gamma)) / 30;
-});
-window.addEventListener('keydown', e => {
-  if (e.key === 'ArrowLeft')  keyLeft  = true;
-  if (e.key === 'ArrowRight') keyRight = true;
 });
 window.addEventListener('keyup', e => {
   if (e.key === 'ArrowLeft')  keyLeft  = false;
@@ -742,6 +765,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
   document.getElementById('overlay').classList.add('hidden');
   initGame();
   state = STATE.PLAYING;
+  if (!frameId) loop();
 });
 
 document.getElementById('viewLbBtn').addEventListener('click', async () => {
@@ -774,6 +798,22 @@ document.getElementById('restartBtn').addEventListener('click', () => {
   document.getElementById('death-overlay').classList.remove('visible');
   initGame();
   state = STATE.PLAYING;
+});
+
+document.getElementById('resumeBtn').addEventListener('click', () => {
+  togglePause();
+});
+
+document.getElementById('menuBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  cancelAnimationFrame(frameId);
+  frameId = null;
+  document.getElementById('pause-overlay').style.display = 'none';
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('start-screen').style.display = 'flex';
+  document.getElementById('start-lb').classList.remove('visible');
+  state = STATE.IDLE;
+  marble = null;
 });
 
 // ─── Start loop ───────────────────────────────────────────
