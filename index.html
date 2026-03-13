@@ -128,11 +128,11 @@
     <div class="drop-title">
       <span class="drop-d">D</span><span class="drop-r">R</span><span class="drop-o">O</span><span class="drop-p">P</span>
     </div>
-    <div class="subtitle">tilt to survive</div>
+    <div class="subtitle">Fall. Bounce. Survive.</div>
     <div class="marble-preview"></div>
     <button class="btn" id="startBtn">Tap to Play</button>
     <button class="btn-ghost" id="viewLbBtn" style="margin-top:12px;">Leaderboard</button>
-    <div class="hint">Tilt your phone to steer<br>Land gently — or shatter</div>
+    <div class="hint" id="controlHint">Tilt your phone to steer<br>Land gently — or shatter</div>
   </div>
   <div id="start-lb">
     <div class="lb-title" style="font-size:16px;margin-bottom:24px;">Leaderboard</div>
@@ -144,7 +144,7 @@
 <div id="death-overlay">
   <!-- Step 1: name entry -->
   <div id="name-entry">
-    <div class="shatter-text">Shattered</div>
+    <div class="shatter-text" id="deathMsg">Shattered!</div>
     <div class="final-score">Score<span id="finalScore">0</span></div>
     <div class="best-score" id="bestScoreEl"></div>
     <input id="playerName" class="name-input" type="text" maxlength="12" placeholder="your name" autocomplete="off" autocorrect="off" spellcheck="false" />
@@ -340,8 +340,9 @@ function spawnPlatform(index) {
     w = REF_WIDTH * 0.35 * scale;
     x = (gw() - w) / 2;
   } else {
-    const maxW = (58  - diff * 25) * scale;
-    const minW = (40  - diff * 10) * scale;
+    const widthMult = isMobile ? 2.0 : 1.0;
+    const maxW = (58 - diff * 25) * scale * widthMult;
+    const minW = (40 - diff * 10) * scale * widthMult;
     w = minW + Math.random() * (maxW - minW);
     w = Math.max(40 * scale, Math.min(w, gw() * 0.45));
     x = margin + Math.random() * (gw() - w - margin * 2);
@@ -693,6 +694,9 @@ function showDeath() {
   bestScore = Math.max(bestScore, score);
   localStorage.setItem('marbleBest', bestScore);
 
+  const deathMessages = ['Shattered!', 'Rough Landing!', 'Obliterated!', 'Gravity Wins!', 'Splat!'];
+  document.getElementById('deathMsg').textContent = deathMessages[Math.floor(Math.random() * deathMessages.length)];
+
   document.getElementById('finalScore').textContent = score;
   const el = document.getElementById('bestScoreEl');
   el.innerHTML = score >= bestScore
@@ -774,6 +778,12 @@ document.getElementById('restartBtn').addEventListener('click', () => {
 
 // ─── Start loop ───────────────────────────────────────────
 loop();
+
+// Swap control hint based on device
+const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || 'ontouchstart' in window;
+document.getElementById('controlHint').innerHTML = isMobile
+  ? 'Tilt your phone to steer.<br>Land gently — or shatter!'
+  : 'Arrow keys to steer.<br>Land gently — or shatter!';
 
 // ─── Title letter cascade ─────────────────────────────────
 ['drop-d','drop-r','drop-o','drop-p'].forEach((cls, i) => {
