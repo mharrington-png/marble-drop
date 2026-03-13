@@ -822,8 +822,8 @@ loop();
 // Swap control hint based on device
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || 'ontouchstart' in window;
 document.getElementById('controlHint').innerHTML = isMobile
-  ? 'Tilt your phone to steer.<br>Land gently — or shatter!'
-  : 'Arrow keys to steer.<br>Land gently — or shatter!';
+  ? 'Tilt your phone to steer.<br>Tap screen while falling to pause.<br>Land gently — or shatter!'
+  : 'Arrow keys to steer. Space to pause.<br>Land gently — or shatter!';
 
 // ─── Title letter cascade ─────────────────────────────────
 ['drop-d','drop-r','drop-o','drop-p'].forEach((cls, i) => {
