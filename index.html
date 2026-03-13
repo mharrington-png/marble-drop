@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Marble Drop</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monospace; touch-action: none; }
+  canvas { display: block; }
+
+  #ui {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 20px 24px; pointer-events: none; z-index: 10;
+  }
+  .stat { color: rgba(255,255,255,0.65); font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; line-height: 1.6; }
+  .stat span { display: block; color: #fff; font-size: 22px; letter-spacing: 0.05em; font-weight: bold; }
+
+  #overlay {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 20;
+    background: #0a0a0f; transition: opacity 0.4s;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  #start-screen { display: flex; flex-direction: column; align-items: center; }
+  #start-lb     { display: none; flex-direction: column; align-items: center; }
+  #start-lb.visible { display: flex; }
+
+  .title { font-size: 48px; font-weight: 900; letter-spacing: 0.1em; color: #fff; text-transform: uppercase; }
+
+  .drop-title {
+    display: flex; align-items: flex-start;
+    font-size: 48px; font-weight: 900; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-top: -4px; line-height: 1;
+  }
+  .drop-title span {
+    display: inline-block;
+    color: rgba(255,255,255,0.9);
+    opacity: 0;
+  }
+  @keyframes letter-drop {
+    0%   { transform: translateY(-80px); opacity: 0; }
+    60%  { transform: translateY(6px);   opacity: 1; }
+    80%  { transform: translateY(-3px);  opacity: 1; }
+    100% { transform: translateY(0);     opacity: 1; }
+  }
+  .subtitle { margin-top: 8px; font-size: 12px; color: rgba(255,255,255,0.6); letter-spacing: 0.25em; text-transform: uppercase; }
+  .marble-preview {
+    margin: 40px 0; width: 48px; height: 48px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff 0%, #c8d8ff 30%, #7090ff 70%, #3040cc 100%);
+    box-shadow: 0 0 30px rgba(100,140,255,0.6), 0 0 60px rgba(100,140,255,0.2);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 30px rgba(100,140,255,0.6), 0 0 60px rgba(100,140,255,0.2); }
+    50%      { box-shadow: 0 0 50px rgba(100,140,255,0.9), 0 0 100px rgba(100,140,255,0.4); }
+  }
+  .btn {
+    background: none; border: 1px solid rgba(255,255,255,0.3); color: #fff;
+    font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 0.3em;
+    text-transform: uppercase; padding: 16px 40px; cursor: pointer;
+    transition: all 0.2s; pointer-events: all;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .btn:hover, .btn:active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.7); }
+  .hint { margin-top: 20px; font-size: 10px; color: rgba(255,255,255,0.45); letter-spacing: 0.2em; text-transform: uppercase; text-align: center; line-height: 1.8; }
+
+  #death-overlay {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; z-index: 20;
+    background: rgba(10,10,15,0.92); opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  #death-overlay.visible { opacity: 1; pointer-events: all; }
+  .shatter-text { font-size: 36px; font-weight: 900; letter-spacing: 0.15em; color: #ff4455; text-transform: uppercase; }
+  .final-score { margin-top: 24px; font-size: 14px; color: rgba(255,255,255,0.65); letter-spacing: 0.2em; text-transform: uppercase; }
+  .final-score span { color: #fff; font-size: 28px; display: block; margin-top: 4px; text-align: center; }
+  .best-score { margin-top: 12px; font-size: 10px; color: rgba(255,215,0,0.8); letter-spacing: 0.2em; text-transform: uppercase; }
+  .best-score span { color: gold; }
+
+  .name-input {
+    margin-top: 24px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(255,255,255,0.4);
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 20px;
+    letter-spacing: 0.15em;
+    text-align: center;
+    width: 200px;
+    outline: none;
+    padding: 8px 0;
+  }
+  .name-input::placeholder { color: rgba(255,255,255,0.2); }
+
+  .btn-ghost {
+    background: none; border: none; color: rgba(255,255,255,0.5);
+    font-family: 'Courier New', monospace; font-size: 11px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    margin-top: 12px; cursor: pointer; pointer-events: all;
+    touch-action: manipulation;
+  }
+  .btn-ghost:hover { color: rgba(255,255,255,0.8); }
+
+  .lb-title {
+    font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: rgba(255,255,255,0.4); margin-bottom: 20px;
+  }
+  .lb-rows { width: 280px; }
+  .lb-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-size: 13px; letter-spacing: 0.08em; color: rgba(255,255,255,0.75);
+  }
+  .lb-row.highlight { color: #ff4455; }
+  .lb-rank { color: rgba(255,255,255,0.3); width: 24px; }
+  .lb-name { flex: 1; padding: 0 12px; }
+  .lb-score { font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div id="start-screen">
+    <div class="title">Marble</div>
+    <div class="drop-title">
+      <span class="drop-d">D</span><span class="drop-r">R</span><span class="drop-o">O</span><span class="drop-p">P</span>
+    </div>
+    <div class="subtitle">tilt to survive</div>
+    <div class="marble-preview"></div>
+    <button class="btn" id="startBtn">Tap to Play</button>
+    <button class="btn-ghost" id="viewLbBtn" style="margin-top:12px;">Leaderboard</button>
+    <div class="hint">Tilt your phone to steer<br>Land gently — or shatter</div>
+  </div>
+  <div id="start-lb">
+    <div class="lb-title" style="font-size:16px;margin-bottom:24px;">Leaderboard</div>
+    <div id="startLbRows" class="lb-rows"></div>
+    <button class="btn-ghost" id="backBtn" style="margin-top:24px;">← Back</button>
+  </div>
+</div>
+
+<div id="death-overlay">
+  <!-- Step 1: name entry -->
+  <div id="name-entry">
+    <div class="shatter-text">Shattered</div>
+    <div class="final-score">Score<span id="finalScore">0</span></div>
+    <div class="best-score" id="bestScoreEl"></div>
+    <input id="playerName" class="name-input" type="text" maxlength="12" placeholder="your name" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <button class="btn" style="margin-top:16px;" id="submitScoreBtn">Submit Score</button>
+    <button class="btn-ghost" id="skipSubmitBtn">Skip</button>
+  </div>
+
+  <!-- Step 2: leaderboard -->
+  <div id="leaderboard" style="display:none;">
+    <div class="lb-title">Leaderboard</div>
+    <div id="lbRows" class="lb-rows"></div>
+    <button class="btn" style="margin-top:24px;" id="restartBtn">Play Again</button>
+  </div>
+</div>
+
+<div id="ui">
+  <div class="stat">Score<span id="scoreEl">0</span></div>
+  <div class="stat" style="text-align:center">Distance<span id="distEl" style="text-align:center">0</span></div>
+  <div class="stat" style="text-align:right">Coins<span id="coinsEl" style="text-align:right">0</span></div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+// ─── Canvas setup ─────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx    = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// ─── Constants ────────────────────────────────────────────
+const MARBLE_RADIUS = 14;
+const GRAVITY       = 0.13;
+const SHATTER_SPEED = 13;
+const TILT_STRENGTH = 0.32;
+const BOUNCE_DAMP   = 0.44;
+const PLAT_H        = 8;
+const PLAT_GAP_Y_BASE = 125;
+
+// ─── Audio ────────────────────────────────────────────────
+let audioCtx = null;
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function soundBounce(intensity) {
+  try {
+    const ac  = getAudio();
+    const osc = ac.createOscillator();
+    const env = ac.createGain();
+    osc.connect(env); env.connect(ac.destination);
+    const freq = 180 + intensity * 60;
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, ac.currentTime + 0.12);
+    osc.type = 'sine';
+    env.gain.setValueAtTime(0.18, ac.currentTime);
+    env.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.15);
+    osc.start(ac.currentTime);
+    osc.stop(ac.currentTime + 0.15);
+  } catch(e) {}
+}
+
+function soundCoin() {
+  try {
+    const ac  = getAudio();
+    const freqs = [1046, 1318, 1568];
+    freqs.forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      const env = ac.createGain();
+      osc.connect(env); env.connect(ac.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ac.currentTime + i * 0.04);
+      env.gain.setValueAtTime(0, ac.currentTime + i * 0.04);
+      env.gain.linearRampToValueAtTime(0.12, ac.currentTime + i * 0.04 + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.04 + 0.2);
+      osc.start(ac.currentTime + i * 0.04);
+      osc.stop(ac.currentTime + i * 0.04 + 0.2);
+    });
+  } catch(e) {}
+}
+
+function soundShatter() {
+  try {
+    const ac     = getAudio();
+    const buffer = ac.createBuffer(1, ac.sampleRate * 0.6, ac.sampleRate);
+    const data   = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5);
+    }
+    const src    = ac.createBufferSource();
+    const filter = ac.createBiquadFilter();
+    const env    = ac.createGain();
+    src.buffer   = buffer;
+    filter.type  = 'bandpass';
+    filter.frequency.value = 800;
+    filter.Q.value = 0.8;
+    src.connect(filter); filter.connect(env); env.connect(ac.destination);
+    env.gain.setValueAtTime(0.4, ac.currentTime);
+    env.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.6);
+    src.start(ac.currentTime);
+  } catch(e) {}
+}
+
+// ─── Game state ───────────────────────────────────────────
+const STATE = { IDLE: 0, PLAYING: 1, DEAD: 2 };
+let state = STATE.IDLE;
+
+let marble     = null;
+let platforms  = [];
+let coins      = [];
+let particles  = [];
+let cameraY    = 0;
+let score      = 0;
+let coinCount  = 0;
+let bestScore  = 0;
+let frameId    = null;
+let startTimer = 0; // counts frames since game started
+
+// ─── Input ────────────────────────────────────────────────
+let tiltX  = 0;
+let keyLeft  = false;
+let keyRight = false;
+
+window.addEventListener('deviceorientation', e => {
+  if (e.gamma !== null) tiltX = Math.max(-30, Math.min(30, e.gamma)) / 30;
+});
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft')  keyLeft  = true;
+  if (e.key === 'ArrowRight') keyRight = true;
+});
+window.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft')  keyLeft  = false;
+  if (e.key === 'ArrowRight') keyRight = false;
+});
+
+// ─── Init ─────────────────────────────────────────────────
+function initGame() {
+  cameraY   = 0;
+  score     = 0;
+  coinCount = 0;
+  startTimer = 0;
+
+  marble = { x: canvas.width / 2, y: 120, vx: 0, vy: 0, alive: true };
+
+  platforms = [];
+  coins     = [];
+  particles = [];
+
+  for (let i = 0; i < 14; i++) spawnPlatform(i);
+
+  document.getElementById('scoreEl').textContent = '0';
+  document.getElementById('distEl').textContent  = '0';
+  document.getElementById('coinsEl').textContent = '0';
+}
+
+// ─── Difficulty ───────────────────────────────────────────
+// Returns 0 at start, approaches 1 very slowly over distance
+function getDifficulty() {
+  const dist = Math.max(0, Math.floor(cameraY / 10));
+  return Math.min(1, dist / 800);
+}
+
+// ─── Spawn platform ───────────────────────────────────────
+function spawnPlatform(index) {
+  const margin = 24;
+  const diff   = getDifficulty();
+  let w, x;
+
+  if (index === 0) {
+    w = canvas.width * 0.55;
+    x = (canvas.width - w) / 2;
+  } else {
+    // Width shrinks from ~150 down to ~55 at full difficulty
+    const maxW = 150 - diff * 80;
+    const minW = 60  - diff * 20;
+    w = minW + Math.random() * (maxW - minW);
+    w = Math.max(40, Math.min(w, canvas.width * 0.62));
+    x = margin + Math.random() * (canvas.width - w - margin * 2);
+  }
+
+  // Gap increases with difficulty
+  const gapY = PLAT_GAP_Y_BASE + diff * 80;
+  const last  = platforms.length > 0 ? platforms[platforms.length - 1] : null;
+  const baseY = last ? last.y + gapY : 260;
+  const jitter = index < 2 ? 0 : (Math.random() - 0.5) * 50;
+  const y = baseY + jitter;
+
+  platforms.push({ x, y, w, h: PLAT_H, index, expires: index === 0 });
+
+  if (index >= 2 && Math.random() < 0.55) {
+    coins.push({
+      x: x + 12 + Math.random() * Math.max(4, w - 24),
+      y: y - 28 - Math.random() * 38,
+      r: 8, collected: false,
+      anim: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+// ─── Particles ────────────────────────────────────────────
+function spawnShatter(wx, wy) {
+  for (let i = 0; i < 26; i++) {
+    const angle = (Math.PI * 2 * i / 26) + (Math.random() - 0.5) * 0.5;
+    const speed = 2 + Math.random() * 7;
+    particles.push({
+      x: wx, y: wy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      life: 1,
+      decay: 0.025 + Math.random() * 0.03,
+      r: 2 + Math.random() * 5,
+      color: ['#7090ff','#c8d8ff','#ffffff','#ff4455'][Math.floor(Math.random() * 4)]
+    });
+  }
+}
+
+function spawnCoinBurst(wx, wy) {
+  for (let i = 0; i < 8; i++) {
+    const a = Math.PI * 2 * i / 8;
+    particles.push({
+      x: wx, y: wy,
+      vx: Math.cos(a) * (1.5 + Math.random() * 2),
+      vy: Math.sin(a) * (1.5 + Math.random() * 2),
+      life: 1, decay: 0.06,
+      r: 2 + Math.random() * 2,
+      color: '#ffd700'
+    });
+  }
+}
+
+// ─── Collision (sub-stepped, all world coords) ────────────
+function moveAndCollide() {
+  const steps = Math.max(3, Math.ceil(Math.abs(marble.vy) / 5));
+  const svx   = marble.vx / steps;
+  const svy   = marble.vy / steps;
+
+  for (let s = 0; s < steps; s++) {
+    marble.x += svx;
+    marble.y += svy;
+
+    // Wall bounds
+    if (marble.x - MARBLE_RADIUS < 0) {
+      marble.x = MARBLE_RADIUS;
+      marble.vx = Math.abs(marble.vx) * 0.55;
+    }
+    if (marble.x + MARBLE_RADIUS > canvas.width) {
+      marble.x = canvas.width - MARBLE_RADIUS;
+      marble.vx = -Math.abs(marble.vx) * 0.55;
+    }
+
+    // Only test platforms while moving downward
+    if (marble.vy <= 0) continue;
+
+    const marbleBottom = marble.y + MARBLE_RADIUS;
+
+    for (const p of platforms) {
+      if (
+        marbleBottom >= p.y &&
+        marbleBottom <= p.y + p.h + Math.abs(svy) + 1 &&
+        marble.x >= p.x &&
+        marble.x <= p.x + p.w
+      ) {
+        const impact = marble.vy;
+
+        if (impact > SHATTER_SPEED) {
+          soundShatter();
+          spawnShatter(marble.x, marble.y);
+          marble.alive = false;
+          setTimeout(showDeath, 700);
+          return;
+        }
+
+        marble.y  = p.y - MARBLE_RADIUS;
+        marble.vy = -impact * (BOUNCE_DAMP + Math.random() * 0.12);
+        marble.vx += (Math.random() - 0.5) * 1.0;
+        if (state === STATE.PLAYING) soundBounce(Math.min(1, impact / SHATTER_SPEED));
+        break;
+      }
+    }
+
+    if (!marble.alive) return;
+  }
+}
+
+// ─── Update ───────────────────────────────────────────────
+function update() {
+  if (state !== STATE.PLAYING || !marble || !marble.alive) return;
+
+  // Tilt input
+  let tilt = tiltX;
+  if (keyLeft)  tilt -= 1;
+  if (keyRight) tilt += 1;
+  marble.vx += tilt * TILT_STRENGTH;
+  marble.vx *= 0.91;
+
+  // Tick start timer and expire first platform after 3s (180 frames)
+  startTimer++;
+  if (startTimer >= 180) {
+    platforms = platforms.filter(p => !p.expires);
+  }
+
+  // Gravity
+  marble.vy += GRAVITY;
+
+  // Move + collide
+  moveAndCollide();
+  if (!marble.alive) return;
+
+  // Coin collection
+  for (const c of coins) {
+    if (c.collected) continue;
+    if (Math.hypot(marble.x - c.x, marble.y - c.y) < MARBLE_RADIUS + c.r) {
+      c.collected = true;
+      coinCount++;
+      soundCoin();
+      spawnCoinBurst(marble.x, marble.y);
+      document.getElementById('coinsEl').textContent = coinCount;
+    }
+  }
+
+  // Camera: lock marble to top 25% of screen
+  cameraY = marble.y - canvas.height * 0.25;
+
+  // Score: (coins+1) * sqrt(distance)
+  const dist = Math.max(0, Math.floor(cameraY / 10));
+  score = Math.floor((coinCount + 1) * Math.sqrt(dist));
+  document.getElementById('scoreEl').textContent = score;
+  document.getElementById('distEl').textContent  = dist;
+
+  // Spawn platforms ahead
+  const last = platforms[platforms.length - 1];
+  if (last && last.y < cameraY + canvas.height + 400) {
+    spawnPlatform(last.index + 1);
+  }
+
+  // Cull off-screen objects — keep a generous buffer above in case of bounce
+  platforms = platforms.filter(p => p.y > cameraY - canvas.height * 1.5);
+  coins     = coins.filter(c => !c.collected && c.y > cameraY - canvas.height * 1.5);
+
+  // Particles
+  for (const p of particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= p.decay;
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+// ─── Draw ─────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.022)';
+  ctx.lineWidth = 1;
+  const gs = 60;
+  const oy = cameraY % gs;
+  for (let x = 0; x < canvas.width; x += gs) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = -oy; y < canvas.height; y += gs) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+
+  // Platforms
+  for (const p of platforms) {
+    const sy = p.y - cameraY;
+    if (sy < -20 || sy > canvas.height + 20) continue;
+
+    // Blink the expiring platform during its last second (frames 120-180)
+    if (p.expires && startTimer >= 120) {
+      const blinkRate = startTimer >= 150 ? 6 : 12; // blinks faster in final 0.5s
+      if (Math.floor(startTimer / blinkRate) % 2 === 0) continue;
+    }
+
+    const g = ctx.createLinearGradient(p.x, sy, p.x + p.w, sy);
+    g.addColorStop(0,   'rgba(255,255,255,0)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0.11)');
+    g.addColorStop(1,   'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x, sy - 2, p.w, p.h + 4);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(p.x, sy, p.w, p.h);
+  }
+
+  // Coins
+  for (const c of coins) {
+    if (c.collected) continue;
+    const sy = c.y - cameraY;
+    if (sy < -20 || sy > canvas.height + 20) continue;
+    c.anim += 0.04;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,215,0,0.7)';
+    ctx.shadowBlur  = 14;
+    ctx.beginPath();
+    ctx.arc(c.x, sy + Math.sin(c.anim) * 3, c.r, 0, Math.PI * 2);
+    ctx.fillStyle   = '#ffd700';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Marble
+  if (marble && marble.alive) {
+    const mx = marble.x;
+    const my = marble.y - cameraY;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(100,140,255,0.8)';
+    ctx.shadowBlur  = 22;
+
+    const g = ctx.createRadialGradient(
+      mx - MARBLE_RADIUS * 0.3, my - MARBLE_RADIUS * 0.3, MARBLE_RADIUS * 0.1,
+      mx, my, MARBLE_RADIUS
+    );
+    g.addColorStop(0,   '#ffffff');
+    g.addColorStop(0.3, '#c8d8ff');
+    g.addColorStop(0.7, '#7090ff');
+    g.addColorStop(1,   '#3040cc');
+
+    ctx.beginPath();
+    ctx.arc(mx, my, MARBLE_RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Particles (world coords → screen)
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - cameraY, Math.max(0.1, p.r * p.life), 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ─── Loop ─────────────────────────────────────────────────
+function loop() {
+  update();
+  draw();
+  frameId = requestAnimationFrame(loop);
+}
+
+// ─── Supabase ─────────────────────────────────────────────
+const SUPABASE_URL = 'https://nrrrpztdrpxuhicxcify.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ycnJwenRkcnB4dWhpY3hjaWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTA3ODYsImV4cCI6MjA4ODk2Njc4Nn0.SuSe6fpxPK_q93b_orNerM-SVyYPemRYODOUMZfLC6E';
+
+async function submitScore(name, score, distance, coins) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ name, score, distance, coins })
+    });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+async function fetchLeaderboard() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/scores?order=score.desc&limit=10`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    return res.ok ? await res.json() : [];
+  } catch(e) { return []; }
+}
+
+function renderLeaderboard(rows, myScore, containerId = 'lbRows') {
+  const el = document.getElementById(containerId);
+  if (rows.length === 0) {
+    el.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;padding:20px;">No scores yet</div>';
+    return;
+  }
+  el.innerHTML = rows.map((r, i) => {
+    const isMe = myScore !== null && r.score === myScore;
+    return `<div class="lb-row ${isMe ? 'highlight' : ''}">
+      <span class="lb-rank">${i + 1}</span>
+      <span class="lb-name">${r.name}</span>
+      <span class="lb-score">${r.score}</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── Death ────────────────────────────────────────────────
+function showDeath() {
+  state = STATE.DEAD;
+  bestScore = Math.max(bestScore, score);
+  localStorage.setItem('marbleBest', bestScore);
+
+  document.getElementById('finalScore').textContent = score;
+  const el = document.getElementById('bestScoreEl');
+  el.innerHTML = score >= bestScore
+    ? `<span style="color:gold">★ New Best!</span>`
+    : `Best: <span>${bestScore}</span>`;
+
+  // Show name entry first
+  document.getElementById('name-entry').style.display = 'flex';
+  document.getElementById('name-entry').style.flexDirection = 'column';
+  document.getElementById('name-entry').style.alignItems = 'center';
+  document.getElementById('leaderboard').style.display = 'none';
+  document.getElementById('death-overlay').classList.add('visible');
+
+  // Pre-fill name if saved
+  const saved = localStorage.getItem('marbleName');
+  if (saved) document.getElementById('playerName').value = saved;
+}
+
+async function goToLeaderboard(submittedScore) {
+  document.getElementById('name-entry').style.display = 'none';
+  document.getElementById('leaderboard').style.display = 'flex';
+  document.getElementById('leaderboard').style.flexDirection = 'column';
+  document.getElementById('leaderboard').style.alignItems = 'center';
+  document.getElementById('lbRows').innerHTML =
+    '<div style="color:rgba(255,255,255,0.3);font-size:11px;letter-spacing:0.15em;">Loading...</div>';
+
+  const rows = await fetchLeaderboard();
+  renderLeaderboard(rows, submittedScore, 'lbRows');
+}
+
+// ─── iOS tilt permission ──────────────────────────────────
+async function requestTilt() {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
+  }
+}
+
+// ─── Button handlers ──────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', async () => {
+  await requestTilt();
+  bestScore = parseInt(localStorage.getItem('marbleBest') || '0');
+  document.getElementById('overlay').classList.add('hidden');
+  initGame();
+  state = STATE.PLAYING;
+});
+
+document.getElementById('viewLbBtn').addEventListener('click', async () => {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('start-lb').classList.add('visible');
+  document.getElementById('startLbRows').innerHTML =
+    '<div style="color:rgba(255,255,255,0.3);font-size:11px;letter-spacing:0.15em;">Loading...</div>';
+  const rows = await fetchLeaderboard();
+  renderLeaderboard(rows, null, 'startLbRows');
+});
+
+document.getElementById('backBtn').addEventListener('click', () => {
+  document.getElementById('start-lb').classList.remove('visible');
+  document.getElementById('start-screen').style.display = 'flex';
+});
+
+document.getElementById('submitScoreBtn').addEventListener('click', async () => {
+  const name = document.getElementById('playerName').value.trim() || 'Anonymous';
+  localStorage.setItem('marbleName', name);
+  const dist = Math.max(0, Math.floor(cameraY / 10));
+  await submitScore(name, score, dist, coinCount);
+  await goToLeaderboard(score);
+});
+
+document.getElementById('skipSubmitBtn').addEventListener('click', async () => {
+  await goToLeaderboard(null);
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  document.getElementById('death-overlay').classList.remove('visible');
+  initGame();
+  state = STATE.PLAYING;
+});
+
+// ─── Start loop ───────────────────────────────────────────
+loop();
+
+// ─── Title letter cascade ─────────────────────────────────
+['drop-d','drop-r','drop-o','drop-p'].forEach((cls, i) => {
+  setTimeout(() => {
+    const el = document.querySelector('.' + cls);
+    el.style.animation = 'letter-drop 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards';
+  }, 300 + i * 200);
+});
+</script>
+</body>
+</html>
