@@ -311,20 +311,24 @@ function getDifficulty() {
 }
 
 // ─── Spawn platform ───────────────────────────────────────
+const REF_WIDTH = 390; // reference screen width (iPhone), widths normalized to this
+
 function spawnPlatform(index) {
   const margin = 24;
   const diff   = getDifficulty();
+  // Scale factor so platforms are same relative size regardless of screen width
+  const scale  = canvas.width / REF_WIDTH;
   let w, x;
 
   if (index === 0) {
-    w = canvas.width * 0.55;
+    w = REF_WIDTH * 0.35 * scale;
     x = (canvas.width - w) / 2;
   } else {
-    // Width shrinks from ~150 down to ~55 at full difficulty
-    const maxW = 150 - diff * 80;
-    const minW = 60  - diff * 20;
+    // Width in reference pixels, then scaled — stays consistent across screen sizes
+    const maxW = (58  - diff * 25) * scale;
+    const minW = (40  - diff * 10) * scale;
     w = minW + Math.random() * (maxW - minW);
-    w = Math.max(40, Math.min(w, canvas.width * 0.62));
+    w = Math.max(40 * scale, Math.min(w, canvas.width * 0.45));
     x = margin + Math.random() * (canvas.width - w - margin * 2);
   }
 
@@ -378,7 +382,7 @@ function spawnCoinBurst(wx, wy) {
   }
 }
 
-// ─── Collision (sub-stepped, all world coords) ────────────
+// ─── Collision (sub-stepped, circle vs rectangle) ────────
 function moveAndCollide() {
   const steps = Math.max(3, Math.ceil(Math.abs(marble.vy) / 5));
   const svx   = marble.vx / steps;
@@ -401,31 +405,54 @@ function moveAndCollide() {
     // Only test platforms while moving downward
     if (marble.vy <= 0) continue;
 
-    const marbleBottom = marble.y + MARBLE_RADIUS;
-
     for (const p of platforms) {
-      if (
-        marbleBottom >= p.y &&
-        marbleBottom <= p.y + p.h + Math.abs(svy) + 1 &&
-        marble.x >= p.x &&
-        marble.x <= p.x + p.w
-      ) {
-        const impact = marble.vy;
+      // Find the closest point on the platform rectangle to the marble center
+      const closestX = Math.max(p.x, Math.min(marble.x, p.x + p.w));
+      const closestY = Math.max(p.y, Math.min(marble.y, p.y + p.h));
 
-        if (impact > SHATTER_SPEED) {
-          soundShatter();
-          spawnShatter(marble.x, marble.y);
-          marble.alive = false;
-          setTimeout(showDeath, 700);
-          return;
-        }
+      const dx = marble.x - closestX;
+      const dy = marble.y - closestY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
 
-        marble.y  = p.y - MARBLE_RADIUS;
-        marble.vy = -impact * (BOUNCE_DAMP + Math.random() * 0.12);
-        marble.vx += (Math.random() - 0.5) * 1.0;
-        if (state === STATE.PLAYING) soundBounce(Math.min(1, impact / SHATTER_SPEED));
-        break;
+      if (dist >= MARBLE_RADIUS) continue; // no collision
+
+      // Collision normal — direction to push marble out
+      const nx = dist === 0 ? 0 : dx / dist;
+      const ny = dist === 0 ? -1 : dy / dist;
+
+      // Relative velocity along normal
+      const velAlongNormal = marble.vx * nx + marble.vy * ny;
+
+      // Only resolve if marble is moving toward the platform
+      if (velAlongNormal >= 0) continue;
+
+      const impact = Math.abs(velAlongNormal);
+
+      if (impact > SHATTER_SPEED) {
+        soundShatter();
+        spawnShatter(marble.x, marble.y);
+        marble.alive = false;
+        setTimeout(showDeath, 700);
+        return;
       }
+
+      // Push marble out of overlap
+      const overlap = MARBLE_RADIUS - dist;
+      marble.x += nx * overlap;
+      marble.y += ny * overlap;
+
+      // Restitution: direct top hits use BOUNCE_DAMP, glancing side hits are bouncier
+      // ny close to -1 = top hit, ny close to 0 = pure side hit
+      const topness = Math.abs(ny); // 1 = straight down, 0 = pure side
+      const restitution = BOUNCE_DAMP + (1 - topness) * 0.35 + Math.random() * 0.08;
+      marble.vx -= (1 + restitution) * velAlongNormal * nx;
+      marble.vy -= (1 + restitution) * velAlongNormal * ny;
+
+      // Small random horizontal nudge on top surface hits only
+      if (ny < -0.7) marble.vx += (Math.random() - 0.5) * 1.0;
+
+      if (state === STATE.PLAYING) soundBounce(Math.min(1, impact / SHATTER_SPEED));
+      break;
     }
 
     if (!marble.alive) return;
