@@ -226,6 +226,19 @@ function getAudio() {
   return audioCtx;
 }
 
+async function unlockAudio() {
+  try {
+    const ac = getAudio();
+    // iOS requires a silent buffer to be played inside a gesture to fully unlock
+    const buf = ac.createBuffer(1, 1, 22050);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.connect(ac.destination);
+    src.start(0);
+    if (ac.state === 'suspended') await ac.resume();
+  } catch(e) {}
+}
+
 function soundBounce(intensity) {
   try {
     const ac  = getAudio();
@@ -762,10 +775,7 @@ async function requestTilt() {
 document.getElementById('startBtn').addEventListener('click', async () => {
   await requestTilt();
   // Unlock audio on iOS — must happen inside a direct user gesture
-  try {
-    const ac = getAudio();
-    if (ac.state === 'suspended') await ac.resume();
-  } catch(e) {}
+  await unlockAudio();
   bestScore = parseInt(localStorage.getItem('marbleBest') || '0');
   document.getElementById('overlay').classList.add('hidden');
   initGame();
@@ -799,7 +809,8 @@ document.getElementById('skipSubmitBtn').addEventListener('click', async () => {
   await goToLeaderboard(null);
 });
 
-document.getElementById('restartBtn').addEventListener('click', () => {
+document.getElementById('restartBtn').addEventListener('click', async () => {
+  await unlockAudio();
   document.getElementById('death-overlay').classList.remove('visible');
   initGame();
   state = STATE.PLAYING;
