@@ -761,6 +761,11 @@ async function requestTilt() {
 // ─── Button handlers ──────────────────────────────────────
 document.getElementById('startBtn').addEventListener('click', async () => {
   await requestTilt();
+  // Unlock audio on iOS — must happen inside a direct user gesture
+  try {
+    const ac = getAudio();
+    if (ac.state === 'suspended') await ac.resume();
+  } catch(e) {}
   bestScore = parseInt(localStorage.getItem('marbleBest') || '0');
   document.getElementById('overlay').classList.add('hidden');
   initGame();
