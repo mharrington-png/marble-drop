@@ -3,8 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
 <title>Marble Drop</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -231,19 +229,21 @@ function getAudio() {
 async function unlockAudio() {
   try {
     const ac = getAudio();
-    // iOS requires a silent buffer to be played inside a gesture to fully unlock
+    console.log('Audio state before unlock:', ac.state);
     const buf = ac.createBuffer(1, 1, 22050);
     const src = ac.createBufferSource();
     src.buffer = buf;
     src.connect(ac.destination);
     src.start(0);
     if (ac.state === 'suspended') await ac.resume();
-  } catch(e) {}
+    console.log('Audio state after unlock:', ac.state);
+  } catch(e) { console.log('unlockAudio error:', e.message); }
 }
 
 function soundBounce(intensity) {
   try {
-    const ac  = getAudio();
+    const ac = getAudio();
+    console.log('soundBounce called, state:', ac.state);
     const osc = ac.createOscillator();
     const env = ac.createGain();
     osc.connect(env); env.connect(ac.destination);
